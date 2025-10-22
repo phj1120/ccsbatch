@@ -1,0 +1,57 @@
+{
+  "name": "ccsbatch",
+  "version": "1.0.0",
+  "description": "Automated scheduler to optimize Claude 5-hour quota usage by sending messages at calculated intervals",
+  "main": "scheduler.js",
+  "bin": {
+    "ccsbatch": "./bin/claude-scheduler.js"
+  },
+  "scripts": {
+    "start": "node scheduler.js",
+    "setup:macos": "bash setup/macos-setup.sh",
+    "setup:windows": "powershell -ExecutionPolicy Bypass -File setup/windows-setup.ps1",
+    "uninstall": "bash setup/uninstall.sh",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "keywords": [
+    "claude",
+    "scheduler",
+    "automation",
+    "quota",
+    "optimizer",
+    "claude-ai",
+    "productivity",
+    "cron",
+    "time-management",
+    "ccsbatch"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phj1120/ccsbatch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/phj1120/ccsbatch/issues"
+  },
+  "homepage": "https://github.com/phj1120/ccsbatch#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "files": [
+    "bin/",
+    "setup/",
+    "templates/",
+    "scripts/",
+    "scheduler.js",
+    "time-calculator.js",
+    "cli-runner.js",
+    "config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "node-cron": "^3.0.3",
+    "cross-spawn": "^7.0.3"
+  }
+}

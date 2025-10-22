@@ -1,0 +1,28 @@
+# Development files
+.git/
+.gitignore
+node_modules/
+*.log
+
+# User-specific files
+config.json
+logs/*
+!logs/.gitkeep
+
+# Documentation (already in files array)
+docs/
+
+# Test files
+test/
+*.test.js
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
