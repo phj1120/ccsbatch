@@ -145,6 +145,28 @@ async function initConfig() {
   }
 }
 
+function ensureAutoStartSetup() {
+  const os = require('os');
+  const homeDir = os.homedir();
+  const platform = process.platform;
+
+  if (platform === 'darwin') {
+    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+
+    if (!fs.existsSync(plistPath)) {
+      console.log('⚙️  Auto-start not configured. Setting up...');
+      console.log('');
+      setupAutoStart();
+      return true;
+    }
+  } else if (platform === 'win32') {
+    // Windows의 경우 Task Scheduler 확인은 복잡하므로 일단 pass
+    // 추후 개선 가능
+  }
+
+  return false;
+}
+
 function setupAutoStart() {
   const platform = process.platform;
 
@@ -227,15 +249,11 @@ function startScheduler() {
     process.exit(1);
   }
 
+  // 자동 setup 체크 및 실행
+  ensureAutoStartSetup();
+
   if (platform === 'darwin') {
     const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
-
-    if (!fs.existsSync(plistPath)) {
-      console.log('⚠️  LaunchAgent not found. Please run setup first.');
-      console.log('');
-      console.log('To setup auto-start: ccsbatch setup');
-      process.exit(1);
-    }
 
     try {
       execSync(`launchctl load "${plistPath}"`, { stdio: 'inherit' });
@@ -419,18 +437,25 @@ async function changeConfig() {
   console.log(`   Work Start: ${workStart}`);
   console.log('');
 
-  // 자동 재시작
+  // 자동 setup 체크 및 재시작
   const platform = process.platform;
   if (platform === 'darwin') {
     const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+
+    // setup이 안되어 있으면 자동으로 setup
+    const wasSetup = ensureAutoStartSetup();
 
     if (fs.existsSync(plistPath)) {
       console.log('Restarting scheduler with new configuration...');
       console.log('');
 
       try {
-        // 기존 서비스 중지
-        execSync(`launchctl unload "${plistPath}"`, { stdio: 'pipe' });
+        // 기존 서비스 중지 (이미 실행 중인 경우만)
+        try {
+          execSync(`launchctl unload "${plistPath}"`, { stdio: 'pipe' });
+        } catch (e) {
+          // 실행 중이 아니면 무시
+        }
 
         // 서비스 재시작
         execSync(`launchctl load "${plistPath}"`, { stdio: 'pipe' });
@@ -447,10 +472,8 @@ async function changeConfig() {
         console.log('');
       } catch (error) {
         console.error('⚠️  Failed to restart scheduler automatically');
-        console.error('Please run: ccsbatch stop && ccsbatch setup');
+        console.error('Please run: ccsbatch stop && ccsbatch start');
       }
-    } else {
-      console.log('💡 Scheduler is not running. To start it, run: ccsbatch setup');
     }
   } else if (platform === 'win32') {
     console.log('💡 Please restart the scheduler manually on Windows');
