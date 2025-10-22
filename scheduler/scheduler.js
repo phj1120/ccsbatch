@@ -8,19 +8,13 @@ const path = require('path');
 
 /**
  * 설정 파일 경로 찾기
- * 우선순위: 현재 디렉토리 > 홈 디렉토리 > 패키지 디렉토리
+ * 항상 홈 디렉토리의 설정 파일만 사용 (~/.ccsbatch/config.json)
  */
 function findConfigPath() {
-  const currentDirConfig = path.join(process.cwd(), 'config.json');
   const homeDirConfig = path.join(require('os').homedir(), '.ccsbatch', 'config.json');
-  const packageDirConfig = path.join(__dirname, 'config.json');
 
-  if (fs.existsSync(currentDirConfig)) {
-    return currentDirConfig;
-  } else if (fs.existsSync(homeDirConfig)) {
+  if (fs.existsSync(homeDirConfig)) {
     return homeDirConfig;
-  } else if (fs.existsSync(packageDirConfig)) {
-    return packageDirConfig;
   }
 
   return null;
