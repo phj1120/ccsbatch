@@ -1,6 +1,6 @@
 {
   "name": "ccsbatch",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Automated scheduler to optimize Claude 5-hour quota usage by sending messages at calculated intervals",
   "main": "scheduler.js",
   "bin": {
@@ -52,7 +52,7 @@
     "LICENSE"
   ],
   "dependencies": {
-    "node-cron": "^3.0.3",
-    "cross-spawn": "^7.0.3"
+    "cross-spawn": "^7.0.3",
+    "node-cron": "^3.0.3"
   }
 }
