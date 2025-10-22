@@ -265,7 +265,7 @@ Removing config files...
 | 항목 | 필수 | 설명 | 예시 |
 |-----|------|------|------|
 | workStart | ✅ | 출근 시간 (HH:mm) | "08:00" |
-| claudeCodePath | ❌ | Claude CLI 경로 | "claude-code" |
+| claudeCodePath | ❌ | Claude CLI 경로 (선택) | "claude" (기본값) |
 
 ### 다양한 출근 시간 예시
 
@@ -350,13 +350,13 @@ cp config.example.json config.json
 
 **문제: Claude CLI 실행 실패**
 ```bash
-# Claude Code CLI 경로 확인
-which claude-code
+# Claude CLI 경로 확인
+which claude
 
-# config.json에서 경로 설정
+# 필요시 config.json에서 경로 설정 (선택사항)
 {
   "workStart": "08:00",
-  "claudeCodePath": "/full/path/to/claude-code"
+  "claudeCodePath": "/custom/path/to/claude"
 }
 ```
 

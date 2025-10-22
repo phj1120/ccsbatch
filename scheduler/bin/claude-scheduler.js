@@ -120,8 +120,7 @@ async function initConfig() {
 
   // config.json 생성
   const config = {
-    workStart: workStart,
-    claudeCodePath: 'claude-code'
+    workStart: workStart
   };
 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');

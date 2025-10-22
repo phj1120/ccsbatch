@@ -82,7 +82,7 @@ function startScheduler() {
     console.log('='.repeat(50));
 
     try {
-      await runClaudeCLI(config.claudeCodePath || 'claude-code');
+      await runClaudeCLI(config.claudeCodePath || 'claude');
     } catch (error) {
       console.error('Failed to run Claude CLI, will retry at next schedule');
     }

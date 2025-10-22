@@ -23,7 +23,7 @@ function getCurrentTimestamp() {
  * @param {string} claudeCodePath - Claude CLI 실행 경로
  * @returns {Promise<void>}
  */
-function runClaudeCLI(claudeCodePath = 'claude-code') {
+function runClaudeCLI(claudeCodePath = 'claude') {
   return new Promise((resolve, reject) => {
     const message = getCurrentTimestamp();
 
