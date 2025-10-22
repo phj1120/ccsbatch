@@ -15,11 +15,12 @@ function calculateSchedule(workStart) {
 
   const firstTime = `${String(firstHour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
-  // 5시간 간격 스케줄 생성
+  // 5시간 간격 스케줄 생성 (하루 최대 4회)
+  // 24시간 ÷ 5시간 = 4.8회 → 4회만 실행 (5회 하면 다음날로 넘어가서 스케줄 꼬임)
   const schedule = [];
   let currentHour = firstHour;
 
-  for (let i = 0; i < 5; i++) { // 하루 최대 5회
+  for (let i = 0; i < 4; i++) { // 하루 최대 4회
     const time = `${String(currentHour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
     schedule.push(time);
     currentHour = (currentHour + 5) % 24;
@@ -43,17 +44,17 @@ function timeToCron(time) {
 }
 
 /**
- * 5시간 간격 cron 표현식 생성
+ * 5시간 간격 cron 표현식 생성 (하루 4회)
  * @param {string} firstTime - 첫 실행 시간
  * @returns {string} cron 표현식
  */
 function generateCronExpression(firstTime) {
   const [hours, minutes] = firstTime.split(':').map(Number);
 
-  // 5시간마다 실행: 시작 시간부터 5시간 간격
+  // 5시간마다 실행: 시작 시간부터 5시간 간격 (하루 4회)
   const cronHours = [];
   let currentHour = hours;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 4; i++) {
     cronHours.push(currentHour);
     currentHour = (currentHour + 5) % 24;
   }
