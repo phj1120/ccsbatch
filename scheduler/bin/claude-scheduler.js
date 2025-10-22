@@ -17,17 +17,24 @@ Usage:
 Commands:
   init               Interactive setup (asks for work start time)
   config             Change work start time
+  status             Check scheduler status
+  explain            Show detailed schedule information
   start              Start the scheduler (default)
+  stop               Stop the scheduler
   setup              Setup auto-start for your OS
   log                View scheduler logs
-  uninstall          Remove auto-start configuration
+  uninstall          Remove auto-start and optionally delete config
   help               Show this help message
 
 Examples:
   ccsbatch init          # Interactive setup
+  ccsbatch status        # Check status
   ccsbatch config        # Change work start time
+  ccsbatch explain       # Show detailed schedule
+  ccsbatch stop          # Stop the scheduler
   ccsbatch log           # View logs
   ccsbatch setup         # Setup auto-start
+  ccsbatch uninstall     # Remove everything
 
 For more information, visit:
 https://github.com/phj1120/ccsbatch
@@ -169,6 +176,40 @@ function setupAutoStart() {
   }
 }
 
+function stopScheduler() {
+  const platform = process.platform;
+
+  console.log('Stopping scheduler...');
+  console.log('');
+
+  if (platform === 'darwin') {
+    const plistPath = path.join(require('os').homedir(), 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+
+    if (!fs.existsSync(plistPath)) {
+      console.log('⚠️  Scheduler is not running (LaunchAgent not found)');
+      process.exit(0);
+    }
+
+    try {
+      execSync(`launchctl unload "${plistPath}"`, { stdio: 'inherit' });
+      console.log('');
+      console.log('✅ Scheduler stopped successfully');
+      console.log('');
+      console.log('To start again, run: ccsbatch setup');
+    } catch (error) {
+      console.error('Failed to stop scheduler');
+      process.exit(1);
+    }
+  } else if (platform === 'win32') {
+    console.log('⚠️  Stop command for Windows is not yet implemented');
+    console.log('Please use Task Manager to stop the scheduler task');
+    process.exit(1);
+  } else {
+    console.log('⚠️  Stop command is only supported on macOS and Windows');
+    process.exit(1);
+  }
+}
+
 function uninstallAutoStart() {
   const platform = process.platform;
 
@@ -195,6 +236,56 @@ function uninstallAutoStart() {
     console.log('⚠️  Auto-start uninstall is only supported on macOS and Windows');
     process.exit(1);
   }
+}
+
+async function uninstallAll() {
+  const os = require('os');
+  const readline = require('readline');
+  const homeDir = os.homedir();
+  const ccsbatchDir = path.join(homeDir, '.ccsbatch');
+
+  console.log('');
+  console.log('='.repeat(50));
+  console.log('Uninstall ccsbatch');
+  console.log('='.repeat(50));
+  console.log('');
+
+  // 1. LaunchAgent/Task 제거
+  console.log('Step 1: Removing auto-start configuration...');
+  uninstallAutoStart();
+
+  // 2. 설정 파일 삭제 여부 확인
+  if (fs.existsSync(ccsbatchDir)) {
+    console.log('');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    const answer = await new Promise(resolve => {
+      rl.question('Do you want to delete config files in ~/.ccsbatch? (y/N): ', resolve);
+    });
+    rl.close();
+
+    if (answer.toLowerCase() === 'y') {
+      console.log('');
+      console.log('Removing config files...');
+      try {
+        fs.rmSync(ccsbatchDir, { recursive: true, force: true });
+        console.log(`✅ Config directory removed: ${ccsbatchDir}`);
+      } catch (error) {
+        console.error(`Failed to remove config directory: ${error.message}`);
+      }
+    } else {
+      console.log('');
+      console.log(`ℹ️  Config files kept at: ${ccsbatchDir}`);
+      console.log('To manually delete later, run: rm -rf ~/.ccsbatch');
+    }
+  }
+
+  console.log('');
+  console.log('✅ Uninstall complete!');
+  console.log('');
 }
 
 async function changeConfig() {
@@ -262,8 +353,44 @@ async function changeConfig() {
   console.log('✅ Configuration updated!');
   console.log(`   Work Start: ${workStart}`);
   console.log('');
-  console.log('💡 If auto-start is enabled, restart is required for changes to take effect.');
-  console.log('   You can restart your system or manually restart the scheduler.');
+
+  // 자동 재시작
+  const platform = process.platform;
+  if (platform === 'darwin') {
+    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+
+    if (fs.existsSync(plistPath)) {
+      console.log('Restarting scheduler with new configuration...');
+      console.log('');
+
+      try {
+        // 기존 서비스 중지
+        execSync(`launchctl unload "${plistPath}"`, { stdio: 'pipe' });
+
+        // 서비스 재시작
+        execSync(`launchctl load "${plistPath}"`, { stdio: 'pipe' });
+
+        console.log('✅ Scheduler restarted successfully!');
+        console.log('');
+
+        // 새로운 스케줄 표시
+        const { calculateSchedule } = require('../time-calculator');
+        const { firstTime, schedule } = calculateSchedule(workStart);
+        console.log('New schedule:');
+        console.log(`  First message: ${firstTime}`);
+        console.log(`  All times: ${schedule.join(', ')}`);
+        console.log('');
+      } catch (error) {
+        console.error('⚠️  Failed to restart scheduler automatically');
+        console.error('Please run: ccsbatch stop && ccsbatch setup');
+      }
+    } else {
+      console.log('💡 Scheduler is not running. To start it, run: ccsbatch setup');
+    }
+  } else if (platform === 'win32') {
+    console.log('💡 Please restart the scheduler manually on Windows');
+    console.log('   You can restart your system or re-run: ccsbatch setup');
+  }
 }
 
 function viewLog() {
@@ -312,6 +439,220 @@ function viewLog() {
   console.log('');
 }
 
+function explainSchedule() {
+  const os = require('os');
+  const homeDir = os.homedir();
+  const configPath = path.join(homeDir, '.ccsbatch', 'config.json');
+
+  // config.json 확인
+  if (!fs.existsSync(configPath)) {
+    console.log('');
+    console.log('❌ Configuration not found');
+    console.log('Please run: ccsbatch init');
+    console.log('');
+    process.exit(1);
+  }
+
+  // 설정 읽기
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const { calculateSchedule, generateCronExpression } = require('../time-calculator');
+  const { firstTime, schedule, interval } = calculateSchedule(config.workStart);
+  const cronExpression = generateCronExpression(firstTime);
+
+  console.log('');
+  console.log('='.repeat(60));
+  console.log('📅  Claude Scheduler - Current Configuration');
+  console.log('='.repeat(60));
+  console.log('');
+
+  // 설정 정보
+  console.log('⚙️  Configuration:');
+  console.log(`   Work Start Time: ${config.workStart}`);
+  console.log(`   First Message Time: ${firstTime} (${config.workStart} - 3 hours)`);
+  console.log(`   Interval: ${interval} minutes (5 hours)`);
+  console.log('');
+
+  // 스케줄 정보
+  console.log('🕐  Schedule (5 times per day):');
+  schedule.forEach((time, index) => {
+    const emoji = ['🕐', '🕘', '🕑', '🕖', '🕛'][index] || '⏰';
+    console.log(`   ${emoji}  ${time}`);
+  });
+  console.log('');
+
+  // Cron 표현식
+  console.log('⚡️  Cron Expression:');
+  console.log(`   ${cronExpression}`);
+  console.log('');
+
+  // 스케줄러 실행 상태 확인
+  const platform = process.platform;
+  if (platform === 'darwin') {
+    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+
+    if (fs.existsSync(plistPath)) {
+      try {
+        const output = execSync('launchctl list | grep com.claude.scheduler', { encoding: 'utf8' });
+        if (output.trim()) {
+          console.log('✅  Scheduler Status: Running');
+          console.log('');
+          console.log('💡  Tips:');
+          console.log('   - View logs: ccsbatch log');
+          console.log('   - Change time: ccsbatch config');
+          console.log('   - Stop scheduler: ccsbatch stop');
+        } else {
+          console.log('⚠️  Scheduler Status: Not Running');
+          console.log('');
+          console.log('💡  To start: ccsbatch setup');
+        }
+      } catch (error) {
+        console.log('⚠️  Scheduler Status: Not Running');
+        console.log('');
+        console.log('💡  To start: ccsbatch setup');
+      }
+    } else {
+      console.log('⚠️  Scheduler Status: Not Setup');
+      console.log('');
+      console.log('💡  To setup auto-start: ccsbatch setup');
+    }
+  } else if (platform === 'win32') {
+    console.log('ℹ️  Scheduler Status: Check Task Scheduler on Windows');
+  }
+
+  console.log('');
+}
+
+function checkStatus() {
+  const os = require('os');
+  const homeDir = os.homedir();
+  const configPath = path.join(homeDir, '.ccsbatch', 'config.json');
+
+  console.log('');
+  console.log('='.repeat(50));
+  console.log('📊  ccsbatch - Status');
+  console.log('='.repeat(50));
+  console.log('');
+
+  // config.json 확인
+  if (!fs.existsSync(configPath)) {
+    console.log('⚠️  Status: Not Configured');
+    console.log('');
+    console.log('💡 Get started: ccsbatch init');
+    console.log('');
+    process.exit(0);
+  }
+
+  // 설정 읽기
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const { calculateSchedule } = require('../time-calculator');
+  const { firstTime, schedule } = calculateSchedule(config.workStart);
+
+  // 스케줄러 실행 상태 확인
+  const platform = process.platform;
+  let isRunning = false;
+  let statusEmoji = '⚠️';
+  let statusText = 'Not Running';
+
+  if (platform === 'darwin') {
+    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+
+    if (fs.existsSync(plistPath)) {
+      try {
+        const output = execSync('launchctl list | grep com.claude.scheduler', { encoding: 'utf8' });
+        if (output.trim()) {
+          isRunning = true;
+          statusEmoji = '✅';
+          statusText = 'Running';
+        }
+      } catch (error) {
+        // Not running
+      }
+    } else {
+      statusEmoji = '❌';
+      statusText = 'Not Setup';
+    }
+  } else if (platform === 'win32') {
+    statusEmoji = 'ℹ️';
+    statusText = 'Check Task Scheduler';
+  }
+
+  // 상태 출력
+  console.log(`${statusEmoji}  Scheduler: ${statusText}`);
+  console.log(`⚙️   Work Start: ${config.workStart}`);
+  console.log('');
+
+  // 다음 실행 예정 시간
+  if (isRunning || statusText === 'Not Running') {
+    console.log('🕐  Next Scheduled Times:');
+
+    // 현재 시간
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+    // 다음 3개 스케줄 찾기
+    const nextTimes = [];
+    for (let i = 0; i < schedule.length * 2; i++) { // 2일치 확인
+      const scheduleTime = schedule[i % schedule.length];
+      const [hour, minute] = scheduleTime.split(':').map(Number);
+      let timeInMinutes = hour * 60 + minute;
+
+      const dayOffset = Math.floor(i / schedule.length);
+      if (dayOffset > 0) {
+        timeInMinutes += dayOffset * 24 * 60;
+      }
+
+      if (timeInMinutes > currentTimeInMinutes) {
+        const diff = timeInMinutes - currentTimeInMinutes;
+        const hoursUntil = Math.floor(diff / 60);
+        const minutesUntil = diff % 60;
+
+        let timeLabel = scheduleTime;
+        if (dayOffset > 0) {
+          timeLabel += ' (tomorrow)';
+        }
+
+        let untilText = '';
+        if (hoursUntil > 0) {
+          untilText = `in ${hoursUntil}h ${minutesUntil}m`;
+        } else {
+          untilText = `in ${minutesUntil}m`;
+        }
+
+        nextTimes.push({ time: timeLabel, until: untilText });
+
+        if (nextTimes.length >= 3) break;
+      }
+    }
+
+    if (nextTimes.length > 0) {
+      nextTimes.forEach((item, index) => {
+        const emoji = index === 0 ? '→' : ' ';
+        console.log(`   ${emoji}  ${item.time} ${item.until}`);
+      });
+    } else {
+      console.log('   No upcoming schedules found');
+    }
+    console.log('');
+  }
+
+  // 액션 제안
+  if (statusText === 'Running') {
+    console.log('💡  Quick Actions:');
+    console.log('   - View details: ccsbatch explain');
+    console.log('   - View logs: ccsbatch log');
+    console.log('   - Change time: ccsbatch config');
+    console.log('   - Stop: ccsbatch stop');
+  } else if (statusText === 'Not Running') {
+    console.log('💡  To start: ccsbatch setup');
+  } else if (statusText === 'Not Setup') {
+    console.log('💡  To setup: ccsbatch setup');
+  }
+
+  console.log('');
+}
+
 // 명령어 처리
 switch (command) {
   case 'init':
@@ -322,6 +663,14 @@ switch (command) {
     changeConfig();
     break;
 
+  case 'status':
+    checkStatus();
+    break;
+
+  case 'explain':
+    explainSchedule();
+    break;
+
   case 'log':
     viewLog();
     break;
@@ -330,8 +679,12 @@ switch (command) {
     setupAutoStart();
     break;
 
+  case 'stop':
+    stopScheduler();
+    break;
+
   case 'uninstall':
-    uninstallAutoStart();
+    uninstallAll();
     break;
 
   case 'help':

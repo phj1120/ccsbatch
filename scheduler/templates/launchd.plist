@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/node</string>
+        <string>/opt/homebrew/opt/node@20/bin/node</string>
         <string>__SCHEDULER_PATH__/scheduler.js</string>
     </array>
 
@@ -29,7 +29,7 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>/opt/homebrew/opt/node@20/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
 </dict>
 </plist>

@@ -101,11 +101,17 @@ ccsbatch setup
 # 초기 설정 (인터랙티브)
 ccsbatch init
 
-# 출근 시간 변경
+# 출근 시간 변경 (자동 재시작)
 ccsbatch config
 
-# 로그 확인
-ccsbatch log
+# 현재 상태 확인 (간단)
+ccsbatch status
+
+# 현재 스케줄 확인 (상세)
+ccsbatch explain
+
+# 스케줄러 중지
+ccsbatch stop
 
 # 스케줄러 수동 시작 (보통 필요 없음)
 ccsbatch start
@@ -113,7 +119,10 @@ ccsbatch start
 # 자동 시작 설정 (init에서 설정하지 않은 경우)
 ccsbatch setup
 
-# 자동 시작 제거
+# 로그 확인
+ccsbatch log
+
+# 완전 제거 (설정 파일 삭제 옵션)
 ccsbatch uninstall
 
 # 도움말
@@ -129,7 +138,7 @@ ccsbatch help
 - 설정 완료 후 자동으로 스케줄러 시작
 
 #### `ccsbatch config`
-출근 시간을 변경합니다.
+출근 시간을 변경합니다. **설정 변경 시 자동으로 스케줄러를 재시작**합니다.
 ```bash
 $ ccsbatch config
 
@@ -138,6 +147,81 @@ Enter new work start time (HH:mm, or press Enter to keep current): 08:30
 
 ✅ Configuration updated!
    Work Start: 08:30
+
+Restarting scheduler with new configuration...
+✅ Scheduler restarted successfully!
+
+New schedule:
+  First message: 05:30
+  All times: 05:30, 10:30, 15:30, 20:30, 01:30
+```
+
+#### `ccsbatch status`
+스케줄러의 현재 상태를 간단하게 확인합니다. **다음 실행 예정 시간**도 함께 표시됩니다.
+```bash
+$ ccsbatch status
+
+==================================================
+📊  ccsbatch - Status
+==================================================
+
+✅  Scheduler: Running
+⚙️   Work Start: 09:00
+
+🕐  Next Scheduled Times:
+   →  16:00 in 2h 30m
+      21:00 in 7h 30m
+      02:00 (tomorrow) in 12h 30m
+
+💡  Quick Actions:
+   - View details: ccsbatch explain
+   - View logs: ccsbatch log
+   - Change time: ccsbatch config
+   - Stop: ccsbatch stop
+```
+
+#### `ccsbatch explain`
+현재 설정된 스케줄 정보를 확인합니다.
+```bash
+$ ccsbatch explain
+
+============================================================
+📅  Claude Scheduler - Current Configuration
+============================================================
+
+⚙️  Configuration:
+   Work Start Time: 09:00
+   First Message Time: 06:00 (09:00 - 3 hours)
+   Interval: 300 minutes (5 hours)
+
+🕐  Schedule (5 times per day):
+   🕐  06:00
+   🕘  11:00
+   🕑  16:00
+   🕖  21:00
+   🕛  02:00
+
+⚡️  Cron Expression:
+   0 6,11,16,21,2 * * *
+
+✅  Scheduler Status: Running
+
+💡  Tips:
+   - View logs: ccsbatch log
+   - Change time: ccsbatch config
+   - Stop scheduler: ccsbatch stop
+```
+
+#### `ccsbatch stop`
+스케줄러를 중지합니다. 설정 파일은 유지됩니다.
+```bash
+$ ccsbatch stop
+
+Stopping scheduler...
+
+✅ Scheduler stopped successfully
+
+To start again, run: ccsbatch setup
 ```
 
 #### `ccsbatch log`
@@ -152,6 +236,26 @@ Scheduler Logs (/Users/username/.ccsbatch/logs/scheduler.log)
 [2025-10-22T05:00:00.000Z] SUCCESS: Sent "2025-10-22 05:00:00"
 [2025-10-22T10:00:00.000Z] SUCCESS: Sent "2025-10-22 10:00:00"
 ...
+```
+
+#### `ccsbatch uninstall`
+스케줄러를 완전히 제거합니다. 설정 파일 삭제 여부를 선택할 수 있습니다.
+```bash
+$ ccsbatch uninstall
+
+==================================================
+Uninstall ccsbatch
+==================================================
+
+Step 1: Removing auto-start configuration...
+✅ Uninstall complete!
+
+Do you want to delete config files in ~/.ccsbatch? (y/N): y
+
+Removing config files...
+✅ Config directory removed: /Users/username/.ccsbatch
+
+✅ Uninstall complete!
 ```
 
 ## ⚙️ 설정
@@ -299,21 +403,96 @@ ccsbatch/
     └── scheduler.log      # 실행 로그
 ```
 
+## 🧪 로컬 테스트 (개발자용)
+
+npm에 배포하기 전에 로컬에서 패키지를 테스트할 수 있습니다.
+
+### 빠른 테스트
+
+```bash
+# 테스트 스크립트 실행
+bash test-local.sh
+```
+
+### 방법 1: npm link (권장)
+
+```bash
+# 현재 패키지를 전역으로 링크
+npm link
+
+# 명령어 테스트
+ccsbatch help
+ccsbatch explain
+ccsbatch init
+
+# 테스트 완료 후 링크 제거
+npm unlink -g ccsbatch
+```
+
+### 방법 2: .tgz 파일로 설치
+
+```bash
+# 1. 패키지 빌드
+npm pack
+
+# 2. 임시 디렉토리에 설치
+mkdir -p ~/test-ccsbatch
+cd ~/test-ccsbatch
+npm install /path/to/ccsbatch-1.0.0.tgz
+
+# 3. 테스트
+npx ccsbatch help
+npx ccsbatch explain
+
+# 4. 정리
+cd ~
+rm -rf ~/test-ccsbatch
+```
+
+### 체크리스트
+
+배포 전 다음 항목을 확인하세요:
+
+**기본 명령어:**
+- [ ] `ccsbatch help` - 도움말 표시
+- [ ] `ccsbatch init` - 초기 설정
+- [ ] `ccsbatch config` - 설정 변경 및 자동 재시작
+- [ ] `ccsbatch status` - 현재 상태 확인
+- [ ] `ccsbatch explain` - 스케줄 정보 표시
+- [ ] `ccsbatch stop` - 스케줄러 중지
+- [ ] `ccsbatch setup` - 자동 시작 설정
+- [ ] `ccsbatch log` - 로그 확인
+- [ ] `ccsbatch uninstall` - 완전 제거
+
+**기능 테스트:**
+- [ ] 설정 파일 생성 (`~/.ccsbatch/config.json`)
+- [ ] LaunchAgent/Task 설정
+- [ ] 스케줄러 정상 실행
+- [ ] 로그 생성 확인
+
+자세한 테스트 가이드는 [docs/local-testing.md](../docs/local-testing.md)를 참고하세요.
+
 ## 📦 npm 배포 (개발자용)
 
 이 패키지를 npm에 배포하려면:
 
 ```bash
-# 1. npm 로그인
+# 1. 로컬 테스트 완료
+bash test-local.sh
+
+# 2. npm 로그인
 npm login
 
-# 2. package.json의 name, repository, homepage 수정
+# 3. package.json의 name, repository, homepage 수정
 vi package.json
 
-# 3. 버전 업데이트
+# 4. 버전 업데이트
 npm version patch  # 또는 minor, major
 
-# 4. 배포
+# 5. 배포 전 미리보기
+npm pack --dry-run
+
+# 6. 배포
 npm publish
 ```
 
