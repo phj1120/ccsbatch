@@ -160,8 +160,21 @@ function ensureAutoStartSetup() {
       return true;
     }
   } else if (platform === 'win32') {
-    // Windows의 경우 Task Scheduler 확인은 복잡하므로 일단 pass
-    // 추후 개선 가능
+    const taskName = 'ClaudeScheduler';
+
+    try {
+      // Task가 존재하는지 확인
+      const checkCmd = `schtasks /Query /TN "${taskName}"`;
+      execSync(checkCmd, { stdio: 'pipe' });
+      // Task가 존재하면 false 반환
+      return false;
+    } catch (error) {
+      // Task가 없으면 자동으로 setup
+      console.log('⚙️  Auto-start not configured. Setting up...');
+      console.log('');
+      setupAutoStart();
+      return true;
+    }
   }
 
   return false;
@@ -223,9 +236,36 @@ function stopScheduler() {
       process.exit(1);
     }
   } else if (platform === 'win32') {
-    console.log('⚠️  Stop command for Windows is not yet implemented');
-    console.log('Please use Task Manager to stop the scheduler task');
-    process.exit(1);
+    const taskName = 'ClaudeScheduler';
+
+    try {
+      // Task가 존재하는지 확인
+      const checkCmd = `schtasks /Query /TN "${taskName}"`;
+      execSync(checkCmd, { stdio: 'pipe' });
+
+      // Task 중지
+      const stopCmd = `schtasks /End /TN "${taskName}"`;
+      execSync(stopCmd, { stdio: 'pipe' });
+
+      console.log('✅ Scheduler stopped successfully');
+      console.log('');
+      console.log('💡 To start again, run: ccsbatch start');
+      console.log('');
+    } catch (error) {
+      // Task가 없거나 이미 중지된 경우
+      if (error.message.includes('cannot find')) {
+        console.log('⚠️  Scheduler task not found');
+        console.log('');
+        console.log('💡 To setup: ccsbatch setup');
+      } else if (error.message.includes('not running')) {
+        console.log('⚠️  Scheduler is already stopped');
+        console.log('');
+        console.log('💡 To start: ccsbatch start');
+      } else {
+        console.error('Failed to stop scheduler:', error.message);
+        process.exit(1);
+      }
+    }
   } else {
     console.log('⚠️  Stop command is only supported on macOS and Windows');
     process.exit(1);
@@ -284,9 +324,42 @@ function startScheduler() {
       }
     }
   } else if (platform === 'win32') {
-    console.log('⚠️  Start command for Windows is not yet implemented');
-    console.log('Please use Task Scheduler or restart your system');
-    process.exit(1);
+    const taskName = 'ClaudeScheduler';
+
+    try {
+      // Task가 존재하는지 확인
+      const checkCmd = `schtasks /Query /TN "${taskName}"`;
+      execSync(checkCmd, { stdio: 'pipe' });
+
+      // Task 실행
+      const runCmd = `schtasks /Run /TN "${taskName}"`;
+      execSync(runCmd, { stdio: 'pipe' });
+
+      console.log('✅ Scheduler started successfully');
+      console.log('');
+
+      // 스케줄 정보 표시
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const { calculateSchedule } = require('../time-calculator');
+      const { firstTime, schedule } = calculateSchedule(config.workStart);
+
+      console.log(`Work Start Time: ${config.workStart}`);
+      console.log(`First Message Time: ${firstTime} (${config.workStart} - 3 hours)`);
+      console.log(`Schedule: ${schedule.join(', ')}`);
+      console.log('');
+      console.log('💡 To stop: ccsbatch stop');
+      console.log('💡 To view logs: ccsbatch log');
+    } catch (error) {
+      if (error.message.includes('cannot find')) {
+        console.log('⚠️  Scheduler task not found');
+        console.log('');
+        console.log('💡 Please run: ccsbatch setup');
+        process.exit(1);
+      } else {
+        console.error('Failed to start scheduler:', error.message);
+        process.exit(1);
+      }
+    }
   } else {
     console.log('⚠️  Start command is only supported on macOS and Windows');
     process.exit(1);
@@ -476,8 +549,47 @@ async function changeConfig() {
       }
     }
   } else if (platform === 'win32') {
-    console.log('💡 Please restart the scheduler manually on Windows');
-    console.log('   You can restart your system or re-run: ccsbatch setup');
+    const taskName = 'ClaudeScheduler';
+
+    // setup이 안되어 있으면 자동으로 setup
+    const wasSetup = ensureAutoStartSetup();
+
+    try {
+      // Task가 존재하는지 확인
+      const checkCmd = `schtasks /Query /TN "${taskName}"`;
+      execSync(checkCmd, { stdio: 'pipe' });
+
+      console.log('Restarting scheduler with new configuration...');
+      console.log('');
+
+      // 기존 Task 중지 (실행 중인 경우만)
+      try {
+        const stopCmd = `schtasks /End /TN "${taskName}"`;
+        execSync(stopCmd, { stdio: 'pipe' });
+      } catch (e) {
+        // 실행 중이 아니면 무시
+      }
+
+      // Task 재시작
+      const runCmd = `schtasks /Run /TN "${taskName}"`;
+      execSync(runCmd, { stdio: 'pipe' });
+
+      console.log('✅ Scheduler restarted successfully!');
+      console.log('');
+
+      // 새로운 스케줄 표시
+      const { calculateSchedule } = require('../time-calculator');
+      const { firstTime, schedule } = calculateSchedule(workStart);
+      console.log('New schedule:');
+      console.log(`  First message: ${firstTime}`);
+      console.log(`  All times: ${schedule.join(', ')}`);
+      console.log('');
+    } catch (error) {
+      if (!wasSetup) {
+        console.error('⚠️  Failed to restart scheduler automatically');
+        console.error('Please run: ccsbatch stop && ccsbatch start');
+      }
+    }
   }
 }
 
@@ -604,7 +716,38 @@ function explainSchedule() {
       console.log('💡  To setup auto-start: ccsbatch setup');
     }
   } else if (platform === 'win32') {
-    console.log('ℹ️  Scheduler Status: Check Task Scheduler on Windows');
+    const taskName = 'ClaudeScheduler';
+    try {
+      // Task 존재 여부 확인
+      const checkCmd = `schtasks /Query /TN "${taskName}" /FO LIST`;
+      const output = execSync(checkCmd, { encoding: 'utf8', stdio: 'pipe' });
+
+      // Task 상태 확인
+      if (output.includes('Running')) {
+        console.log('✅  Scheduler Status: Running');
+        console.log('');
+        console.log('💡  Tips:');
+        console.log('   - View logs: ccsbatch log');
+        console.log('   - Change time: ccsbatch config');
+        console.log('   - Stop scheduler: ccsbatch stop');
+      } else if (output.includes('Ready')) {
+        console.log('⚠️  Scheduler Status: Ready (Not Running)');
+        console.log('');
+        console.log('💡  To start: ccsbatch start');
+      } else if (output.includes('Disabled')) {
+        console.log('❌  Scheduler Status: Disabled');
+        console.log('');
+        console.log('💡  To enable and start: ccsbatch setup');
+      } else {
+        console.log('ℹ️  Scheduler Status: Unknown');
+        console.log('');
+        console.log('💡  Check Task Scheduler for details');
+      }
+    } catch (error) {
+      console.log('⚠️  Scheduler Status: Not Setup');
+      console.log('');
+      console.log('💡  To setup auto-start: ccsbatch setup');
+    }
   }
 
   console.log('');
@@ -677,8 +820,35 @@ function checkStatus() {
       statusText = 'Not Setup';
     }
   } else if (platform === 'win32') {
-    statusEmoji = 'ℹ️';
-    statusText = 'Check Task Scheduler';
+    const taskName = 'ClaudeScheduler';
+    try {
+      // Task 존재 여부 확인
+      const checkCmd = `schtasks /Query /TN "${taskName}" /FO LIST`;
+      const output = execSync(checkCmd, { encoding: 'utf8', stdio: 'pipe' });
+
+      // Task 상태 확인 (Ready, Running, Disabled 등)
+      if (output.includes('Running')) {
+        isRunning = true;
+        statusEmoji = '✅';
+        statusText = 'Running';
+      } else if (output.includes('Ready')) {
+        isRunning = false;
+        statusEmoji = '⚠️';
+        statusText = 'Ready (Not Running)';
+      } else if (output.includes('Disabled')) {
+        isRunning = false;
+        statusEmoji = '❌';
+        statusText = 'Disabled';
+      } else {
+        isRunning = false;
+        statusEmoji = '⚠️';
+        statusText = 'Unknown';
+      }
+    } catch (error) {
+      // Task가 없는 경우
+      statusEmoji = '❌';
+      statusText = 'Not Setup';
+    }
   }
 
   // 상태 출력
