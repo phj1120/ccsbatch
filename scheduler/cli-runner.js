@@ -30,7 +30,8 @@ function runClaudeCLI(claudeCodePath = 'claude') {
     // Claude Code CLI 실행
     const child = spawn(claudeCodePath, [message], {
       stdio: 'inherit', // 출력을 부모 프로세스와 공유
-      timeout: 30000 // 30초 타임아웃
+      timeout: 30000, // 30초 타임아웃
+      shell: true // Windows에서 .bat, .cmd 파일 실행을 위해 필요
     });
 
     child.on('error', (error) => {

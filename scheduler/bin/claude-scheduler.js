@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-const { startScheduler } = require('../scheduler');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -24,6 +23,7 @@ Commands:
   setup              Setup auto-start for your OS
   log                View scheduler logs
   uninstall          Remove auto-start and optionally delete config
+  version            Show version information
   help               Show this help message
 
 Examples:
@@ -34,6 +34,7 @@ Examples:
   ccsbatch stop          # Stop the scheduler
   ccsbatch log           # View logs
   ccsbatch setup         # Setup auto-start
+  ccsbatch version       # Show version
   ccsbatch uninstall     # Remove everything
 
 For more information, visit:
@@ -194,7 +195,7 @@ function stopScheduler() {
       console.log('');
       console.log('✅ Scheduler stopped successfully');
       console.log('');
-      console.log('To start again, run: ccsbatch setup');
+      console.log('To start again, run: ccsbatch start');
     } catch (error) {
       console.error('Failed to stop scheduler');
       process.exit(1);
@@ -205,6 +206,71 @@ function stopScheduler() {
     process.exit(1);
   } else {
     console.log('⚠️  Stop command is only supported on macOS and Windows');
+    process.exit(1);
+  }
+}
+
+function startScheduler() {
+  const os = require('os');
+  const homeDir = os.homedir();
+  const configPath = path.join(homeDir, '.ccsbatch', 'config.json');
+  const platform = process.platform;
+
+  console.log('Starting scheduler...');
+  console.log('');
+
+  // config.json 확인
+  if (!fs.existsSync(configPath)) {
+    console.log('❌ Configuration not found');
+    console.log('Please run: ccsbatch init');
+    console.log('');
+    process.exit(1);
+  }
+
+  if (platform === 'darwin') {
+    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+
+    if (!fs.existsSync(plistPath)) {
+      console.log('⚠️  LaunchAgent not found. Please run setup first.');
+      console.log('');
+      console.log('To setup auto-start: ccsbatch setup');
+      process.exit(1);
+    }
+
+    try {
+      execSync(`launchctl load "${plistPath}"`, { stdio: 'inherit' });
+      console.log('');
+      console.log('✅ Scheduler started successfully');
+      console.log('');
+
+      // 스케줄 정보 표시
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const { calculateSchedule } = require('../time-calculator');
+      const { firstTime, schedule } = calculateSchedule(config.workStart);
+
+      console.log(`Work Start Time: ${config.workStart}`);
+      console.log(`First Message Time: ${firstTime} (${config.workStart} - 3 hours)`);
+      console.log(`Schedule: ${schedule.join(', ')}`);
+      console.log('');
+      console.log('💡 To stop: ccsbatch stop');
+    } catch (error) {
+      // 이미 실행 중인 경우
+      if (error.message.includes('already loaded')) {
+        console.log('⚠️  Scheduler is already running');
+        console.log('');
+        console.log('To restart: ccsbatch stop && ccsbatch start');
+      } else {
+        console.error('Failed to start scheduler');
+        console.error(error.message);
+        process.exit(1);
+      }
+    }
+  } else if (platform === 'win32') {
+    console.log('⚠️  Start command for Windows is not yet implemented');
+    console.log('Please use Task Scheduler or restart your system');
+    process.exit(1);
+  } else {
+    console.log('⚠️  Start command is only supported on macOS and Windows');
     process.exit(1);
   }
 }
@@ -521,6 +587,23 @@ function explainSchedule() {
   console.log('');
 }
 
+function showVersion() {
+  const packageJson = require('../package.json');
+
+  console.log('');
+  console.log('='.repeat(50));
+  console.log('📦  ccsbatch - Version Information');
+  console.log('='.repeat(50));
+  console.log('');
+  console.log(`Version: ${packageJson.version}`);
+  console.log(`Name: ${packageJson.name}`);
+  console.log(`Description: ${packageJson.description}`);
+  console.log('');
+  console.log('Repository:');
+  console.log(`  ${packageJson.repository.url.replace('git+', '').replace('.git', '')}`);
+  console.log('');
+}
+
 function checkStatus() {
   const os = require('os');
   const homeDir = os.homedir();
@@ -686,6 +769,12 @@ switch (command) {
     uninstallAll();
     break;
 
+  case 'version':
+  case '--version':
+  case '-v':
+    showVersion();
+    break;
+
   case 'help':
   case '--help':
   case '-h':
@@ -693,9 +782,12 @@ switch (command) {
     break;
 
   case 'start':
-  case undefined:
-    // 기본 동작: 스케줄러 시작
     startScheduler();
+    break;
+
+  case undefined:
+    // 기본 동작: 도움말 표시
+    showHelp();
     break;
 
   default:
