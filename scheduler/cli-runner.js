@@ -27,26 +27,74 @@ function runClaudeCLI(claudeCodePath = 'claude') {
   return new Promise((resolve, reject) => {
     const message = getCurrentTimestamp();
 
+    console.log(`[DEBUG] Executing: ${claudeCodePath} "${message}"`);
+
     // Claude Code CLI 실행
     const child = spawn(claudeCodePath, [message], {
       stdio: 'inherit', // 출력을 부모 프로세스와 공유
-      timeout: 30000, // 30초 타임아웃
-      shell: true // Windows에서 .bat, .cmd 파일 실행을 위해 필요
+      shell: true, // Windows에서 .bat, .cmd 파일 실행을 위해 필요
+      windowsHide: true // Windows에서 콘솔 창 숨기기
     });
+
+    let isResolved = false;
+    let timeoutId = null;
+
+    // 30초 타임아웃 설정
+    timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        child.kill();
+        const error = new Error('Claude CLI timeout after 30 seconds');
+        logError('Claude CLI timeout', error);
+        reject(error);
+      }
+    }, 30000);
 
     child.on('error', (error) => {
-      logError('Failed to start Claude CLI', error);
-      reject(error);
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timeoutId);
+        logError('Failed to start Claude CLI', error);
+        reject(error);
+      }
     });
 
-    child.on('exit', (code) => {
-      if (code === 0) {
-        logSuccess(message);
-        resolve();
-      } else {
-        const error = new Error(`Claude CLI exited with code ${code}`);
-        logError('Claude CLI failed', error);
-        reject(error);
+    child.on('exit', (code, signal) => {
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timeoutId);
+
+        console.log(`[DEBUG] Claude CLI exited with code: ${code}, signal: ${signal}`);
+
+        // Windows에서 shell:true로 실행 시 code가 null일 수 있음
+        // signal이 null이고 정상 종료된 경우 성공으로 간주
+        if (code === 0 || (code === null && signal === null)) {
+          logSuccess(message);
+          resolve();
+        } else {
+          const error = new Error(`Claude CLI exited with code ${code}, signal ${signal}`);
+          logError('Claude CLI failed', error);
+          reject(error);
+        }
+      }
+    });
+
+    child.on('close', (code, signal) => {
+      // close 이벤트는 exit 이후에 발생하므로 이미 처리되었을 수 있음
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timeoutId);
+
+        console.log(`[DEBUG] Claude CLI closed with code: ${code}, signal: ${signal}`);
+
+        if (code === 0 || (code === null && signal === null)) {
+          logSuccess(message);
+          resolve();
+        } else {
+          const error = new Error(`Claude CLI closed with code ${code}, signal ${signal}`);
+          logError('Claude CLI failed', error);
+          reject(error);
+        }
       }
     });
   });
