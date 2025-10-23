@@ -1,6 +1,6 @@
 {
   "name": "ccsbatch",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Automated scheduler to optimize Claude 5-hour quota usage by sending messages at calculated intervals",
   "main": "scheduler.js",
   "bin": {

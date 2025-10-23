@@ -12,7 +12,17 @@ Write-Host ""
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SchedulerDir = Split-Path -Parent $ScriptDir
 $TaskName = "ClaudeScheduler"
-$ConfigPath = Join-Path $env:USERPROFILE ".ccsbatch\config.json"
+
+# 실제 사용자 감지 (유틸리티 함수 import)
+. (Join-Path $ScriptDir "get-real-user.ps1")
+$RealUser = Get-RealUser
+
+Write-Host ""
+Write-Host "Target user: $($RealUser.Username)" -ForegroundColor Green
+Write-Host "Home directory: $($RealUser.HomeDirectory)" -ForegroundColor Green
+Write-Host ""
+
+$ConfigPath = Join-Path $RealUser.HomeDirectory ".ccsbatch\config.json"
 
 Write-Host "Scheduler directory: $SchedulerDir"
 
@@ -56,7 +66,7 @@ if ($ExistingTask) {
 
 # Task Action 생성 (scheduler-once.js 실행)
 $SchedulerScript = Join-Path $SchedulerDir "scheduler-once.js"
-$LogPath = Join-Path $env:USERPROFILE ".ccsbatch\logs\scheduler.log"
+$LogPath = Join-Path $RealUser.HomeDirectory ".ccsbatch\logs\scheduler.log"
 $LogDir = Split-Path $LogPath
 
 # 로그 디렉토리 생성
@@ -85,8 +95,8 @@ $Settings = New-ScheduledTaskSettingsSet `
     -RestartCount 3 `
     -RestartInterval (New-TimeSpan -Minutes 1)
 
-# Principal (사용자 권한)
-$Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
+# Principal (실제 사용자 권한)
+$Principal = New-ScheduledTaskPrincipal -UserId $RealUser.Username -LogonType S4U -RunLevel Limited
 
 # Task 등록
 Write-Host "Registering scheduled task with $($Triggers.Count) triggers..."

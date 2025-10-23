@@ -3,6 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { getRealUser } = require('../get-real-user');
+
+// 실제 사용자 정보 (Windows에서 Administrator로 실행되어도 실제 사용자 감지)
+const realUser = getRealUser();
 
 const command = process.argv[2];
 
@@ -43,10 +47,8 @@ https://github.com/phj1120/ccsbatch
 }
 
 async function initConfig() {
-  const os = require('os');
   const readline = require('readline');
-  const homeDir = os.homedir();
-  const ccsbatchDir = path.join(homeDir, '.ccsbatch');
+  const ccsbatchDir = path.join(realUser.homeDirectory, '.ccsbatch');
   const configPath = path.join(ccsbatchDir, 'config.json');
   const logsDir = path.join(ccsbatchDir, 'logs');
 
@@ -146,12 +148,10 @@ async function initConfig() {
 }
 
 function ensureAutoStartSetup() {
-  const os = require('os');
-  const homeDir = os.homedir();
   const platform = process.platform;
 
   if (platform === 'darwin') {
-    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+    const plistPath = path.join(realUser.homeDirectory, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
 
     if (!fs.existsSync(plistPath)) {
       console.log('⚙️  Auto-start not configured. Setting up...');
@@ -218,7 +218,7 @@ function stopScheduler() {
   console.log('');
 
   if (platform === 'darwin') {
-    const plistPath = path.join(require('os').homedir(), 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+    const plistPath = path.join(realUser.homeDirectory, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
 
     if (!fs.existsSync(plistPath)) {
       console.log('⚠️  Scheduler is not running (LaunchAgent not found)');
@@ -271,9 +271,7 @@ function stopScheduler() {
 }
 
 function startScheduler() {
-  const os = require('os');
-  const homeDir = os.homedir();
-  const configPath = path.join(homeDir, '.ccsbatch', 'config.json');
+  const configPath = path.join(realUser.homeDirectory, '.ccsbatch', 'config.json');
   const platform = process.platform;
 
   console.log('Starting scheduler...');
@@ -291,7 +289,7 @@ function startScheduler() {
   ensureAutoStartSetup();
 
   if (platform === 'darwin') {
-    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+    const plistPath = path.join(realUser.homeDirectory, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
 
     try {
       execSync(`launchctl load "${plistPath}"`, { stdio: 'inherit' });
@@ -395,10 +393,8 @@ function uninstallAutoStart() {
 }
 
 async function uninstallAll() {
-  const os = require('os');
   const readline = require('readline');
-  const homeDir = os.homedir();
-  const ccsbatchDir = path.join(homeDir, '.ccsbatch');
+  const ccsbatchDir = path.join(realUser.homeDirectory, '.ccsbatch');
 
   console.log('');
   console.log('='.repeat(50));
@@ -445,10 +441,8 @@ async function uninstallAll() {
 }
 
 async function changeConfig() {
-  const os = require('os');
   const readline = require('readline');
-  const homeDir = os.homedir();
-  const configPath = path.join(homeDir, '.ccsbatch', 'config.json');
+  const configPath = path.join(realUser.homeDirectory, '.ccsbatch', 'config.json');
 
   // config.json 확인
   if (!fs.existsSync(configPath)) {
@@ -513,7 +507,7 @@ async function changeConfig() {
   // 자동 setup 체크 및 재시작
   const platform = process.platform;
   if (platform === 'darwin') {
-    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+    const plistPath = path.join(realUser.homeDirectory, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
 
     // setup이 안되어 있으면 자동으로 setup
     const wasSetup = ensureAutoStartSetup();
@@ -572,9 +566,7 @@ async function changeConfig() {
 }
 
 function viewLog() {
-  const os = require('os');
-  const homeDir = os.homedir();
-  const logPath = path.join(homeDir, '.ccsbatch', 'logs', 'scheduler.log');
+  const logPath = path.join(realUser.homeDirectory, '.ccsbatch', 'logs', 'scheduler.log');
 
   if (!fs.existsSync(logPath)) {
     console.log('');
@@ -618,9 +610,7 @@ function viewLog() {
 }
 
 function explainSchedule() {
-  const os = require('os');
-  const homeDir = os.homedir();
-  const configPath = path.join(homeDir, '.ccsbatch', 'config.json');
+  const configPath = path.join(realUser.homeDirectory, '.ccsbatch', 'config.json');
 
   // config.json 확인
   if (!fs.existsSync(configPath)) {
@@ -666,7 +656,7 @@ function explainSchedule() {
   // 스케줄러 실행 상태 확인
   const platform = process.platform;
   if (platform === 'darwin') {
-    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+    const plistPath = path.join(realUser.homeDirectory, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
 
     if (fs.existsSync(plistPath)) {
       try {
@@ -766,9 +756,7 @@ function showVersion() {
 }
 
 function checkStatus() {
-  const os = require('os');
-  const homeDir = os.homedir();
-  const configPath = path.join(homeDir, '.ccsbatch', 'config.json');
+  const configPath = path.join(realUser.homeDirectory, '.ccsbatch', 'config.json');
 
   console.log('');
   console.log('='.repeat(50));
@@ -797,7 +785,7 @@ function checkStatus() {
   let statusText = 'Not Running';
 
   if (platform === 'darwin') {
-    const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
+    const plistPath = path.join(realUser.homeDirectory, 'Library', 'LaunchAgents', 'com.claude.scheduler.plist');
 
     if (fs.existsSync(plistPath)) {
       try {
