@@ -1,6 +1,6 @@
 {
   "name": "ccsbatch",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Automated scheduler to optimize Claude 5-hour quota usage by sending messages at calculated intervals",
   "main": "scheduler.js",
   "bin": {
@@ -47,6 +47,7 @@
     "scheduler-once.js",
     "time-calculator.js",
     "cli-runner.js",
+    "get-real-user.js",
     "windows-wrapper.vbs",
     "config.example.json",
     "test-local.sh",
