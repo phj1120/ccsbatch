@@ -45,6 +45,3 @@ function Get-RealUser {
         HomeDirectory = $userHome
     }
 }
-
-# 함수를 export
-Export-ModuleMember -Function Get-RealUser

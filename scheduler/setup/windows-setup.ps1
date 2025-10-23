@@ -13,8 +13,49 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SchedulerDir = Split-Path -Parent $ScriptDir
 $TaskName = "ClaudeScheduler"
 
-# 실제 사용자 감지 (유틸리티 함수 import)
-. (Join-Path $ScriptDir "get-real-user.ps1")
+# 실제 사용자 감지 함수 (whoami 사용)
+function Get-RealUser {
+    Write-Host "Detecting real logged-in user..." -ForegroundColor Cyan
+
+    try {
+        $whoamiOutput = whoami
+        Write-Host "  whoami output: $whoamiOutput" -ForegroundColor Cyan
+
+        # DOMAIN\Username 또는 COMPUTERNAME\Username 형식에서 사용자명만 추출
+        if ($whoamiOutput -match '\\(.+)$') {
+            $realUser = $matches[1]
+        } else {
+            $realUser = $whoamiOutput
+        }
+
+        $userHome = "C:\Users\$realUser"
+
+        # 홈 디렉토리 존재 확인
+        if (Test-Path $userHome) {
+            Write-Host "  Using current user from whoami: $realUser" -ForegroundColor Green
+            return @{
+                Username = $realUser
+                HomeDirectory = $userHome
+            }
+        }
+
+        Write-Host "  Warning: Home directory not found: $userHome" -ForegroundColor Yellow
+    }
+    catch {
+        Write-Host "  whoami failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    # Fallback: USERNAME 환경변수 사용
+    $userName = $env:USERNAME
+    $userHome = "C:\Users\$userName"
+    Write-Host "  Fallback to USERNAME: $userName" -ForegroundColor Yellow
+
+    return @{
+        Username = $userName
+        HomeDirectory = $userHome
+    }
+}
+
 $RealUser = Get-RealUser
 
 Write-Host ""
