@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-16"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Date>2025-01-01T00:00:00</Date>
@@ -32,7 +32,7 @@
     </IdleSettings>
     <AllowStartOnDemand>true</AllowStartOnDemand>
     <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
+    <Hidden>true</Hidden>
     <RunOnlyIfIdle>false</RunOnlyIfIdle>
     <WakeToRun>false</WakeToRun>
     <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
@@ -45,8 +45,8 @@
 
   <Actions Context="Author">
     <Exec>
-      <Command>__NODE_PATH__</Command>
-      <Arguments>__SCHEDULER_PATH__\scheduler.js</Arguments>
+      <Command>wscript.exe</Command>
+      <Arguments>"__SCHEDULER_PATH__\windows-wrapper.vbs"</Arguments>
       <WorkingDirectory>__SCHEDULER_PATH__</WorkingDirectory>
     </Exec>
   </Actions>

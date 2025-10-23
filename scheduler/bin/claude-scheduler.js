@@ -243,24 +243,22 @@ function stopScheduler() {
       const checkCmd = `schtasks /Query /TN "${taskName}"`;
       execSync(checkCmd, { stdio: 'pipe' });
 
-      // Task 중지
-      const stopCmd = `schtasks /End /TN "${taskName}"`;
-      execSync(stopCmd, { stdio: 'pipe' });
+      // Task 비활성화 (Disable)
+      const disableCmd = `schtasks /Change /TN "${taskName}" /Disable`;
+      execSync(disableCmd, { stdio: 'pipe' });
 
       console.log('✅ Scheduler stopped successfully');
+      console.log('');
+      console.log('The scheduler will no longer run at scheduled times.');
       console.log('');
       console.log('💡 To start again, run: ccsbatch start');
       console.log('');
     } catch (error) {
-      // Task가 없거나 이미 중지된 경우
+      // Task가 없는 경우
       if (error.message.includes('cannot find')) {
         console.log('⚠️  Scheduler task not found');
         console.log('');
         console.log('💡 To setup: ccsbatch setup');
-      } else if (error.message.includes('not running')) {
-        console.log('⚠️  Scheduler is already stopped');
-        console.log('');
-        console.log('💡 To start: ccsbatch start');
       } else {
         console.error('Failed to stop scheduler:', error.message);
         process.exit(1);
@@ -331,9 +329,9 @@ function startScheduler() {
       const checkCmd = `schtasks /Query /TN "${taskName}"`;
       execSync(checkCmd, { stdio: 'pipe' });
 
-      // Task 실행
-      const runCmd = `schtasks /Run /TN "${taskName}"`;
-      execSync(runCmd, { stdio: 'pipe' });
+      // Task 활성화 (Enable)
+      const enableCmd = `schtasks /Change /TN "${taskName}" /Enable`;
+      execSync(enableCmd, { stdio: 'pipe' });
 
       console.log('✅ Scheduler started successfully');
       console.log('');
@@ -346,6 +344,8 @@ function startScheduler() {
       console.log(`Work Start Time: ${config.workStart}`);
       console.log(`First Message Time: ${firstTime} (${config.workStart} - 3 hours)`);
       console.log(`Schedule: ${schedule.join(', ')}`);
+      console.log('');
+      console.log('The scheduler will run automatically at these times.');
       console.log('');
       console.log('💡 To stop: ccsbatch stop');
       console.log('💡 To view logs: ccsbatch log');
@@ -549,47 +549,25 @@ async function changeConfig() {
       }
     }
   } else if (platform === 'win32') {
-    const taskName = 'ClaudeScheduler';
+    // Windows: 시간이 바뀌면 트리거를 재등록해야 하므로 setup을 다시 실행
+    console.log('Updating scheduler with new configuration...');
+    console.log('');
 
-    // setup이 안되어 있으면 자동으로 setup
-    const wasSetup = ensureAutoStartSetup();
+    // setup 재실행 (기존 Task 삭제 후 새 트리거로 재등록)
+    setupAutoStart();
 
-    try {
-      // Task가 존재하는지 확인
-      const checkCmd = `schtasks /Query /TN "${taskName}"`;
-      execSync(checkCmd, { stdio: 'pipe' });
+    console.log('✅ Scheduler updated successfully!');
+    console.log('');
 
-      console.log('Restarting scheduler with new configuration...');
-      console.log('');
-
-      // 기존 Task 중지 (실행 중인 경우만)
-      try {
-        const stopCmd = `schtasks /End /TN "${taskName}"`;
-        execSync(stopCmd, { stdio: 'pipe' });
-      } catch (e) {
-        // 실행 중이 아니면 무시
-      }
-
-      // Task 재시작
-      const runCmd = `schtasks /Run /TN "${taskName}"`;
-      execSync(runCmd, { stdio: 'pipe' });
-
-      console.log('✅ Scheduler restarted successfully!');
-      console.log('');
-
-      // 새로운 스케줄 표시
-      const { calculateSchedule } = require('../time-calculator');
-      const { firstTime, schedule } = calculateSchedule(workStart);
-      console.log('New schedule:');
-      console.log(`  First message: ${firstTime}`);
-      console.log(`  All times: ${schedule.join(', ')}`);
-      console.log('');
-    } catch (error) {
-      if (!wasSetup) {
-        console.error('⚠️  Failed to restart scheduler automatically');
-        console.error('Please run: ccsbatch stop && ccsbatch start');
-      }
-    }
+    // 새로운 스케줄 표시
+    const { calculateSchedule } = require('../time-calculator');
+    const { firstTime, schedule } = calculateSchedule(workStart);
+    console.log('New schedule:');
+    console.log(`  First message: ${firstTime}`);
+    console.log(`  All times: ${schedule.join(', ')}`);
+    console.log('');
+    console.log('The scheduler will run automatically at these new times.');
+    console.log('');
   }
 }
 
@@ -719,29 +697,46 @@ function explainSchedule() {
     const taskName = 'ClaudeScheduler';
     try {
       // Task 존재 여부 확인
-      const checkCmd = `schtasks /Query /TN "${taskName}" /FO LIST`;
+      const checkCmd = `schtasks /Query /TN "${taskName}" /V /FO CSV`;
       const output = execSync(checkCmd, { encoding: 'utf8', stdio: 'pipe' });
 
-      // Task 상태 확인
-      if (output.includes('Running')) {
-        console.log('✅  Scheduler Status: Running');
-        console.log('');
-        console.log('💡  Tips:');
-        console.log('   - View logs: ccsbatch log');
-        console.log('   - Change time: ccsbatch config');
-        console.log('   - Stop scheduler: ccsbatch stop');
-      } else if (output.includes('Ready')) {
-        console.log('⚠️  Scheduler Status: Ready (Not Running)');
-        console.log('');
-        console.log('💡  To start: ccsbatch start');
-      } else if (output.includes('Disabled')) {
-        console.log('❌  Scheduler Status: Disabled');
-        console.log('');
-        console.log('💡  To enable and start: ccsbatch setup');
-      } else {
-        console.log('ℹ️  Scheduler Status: Unknown');
-        console.log('');
-        console.log('💡  Check Task Scheduler for details');
+      // CSV 파싱하여 상태 확인
+      const lines = output.split('\n');
+      if (lines.length > 1) {
+        const statusLine = lines[1];
+
+        // Task가 Disabled인지 확인
+        if (statusLine.includes('Disabled')) {
+          console.log('❌  Scheduler Status: Disabled');
+          console.log('');
+          console.log('💡  To enable and start: ccsbatch setup');
+        } else {
+          // node.exe 프로세스가 실행 중인지 확인
+          try {
+            const processCmd = 'tasklist /FI "IMAGENAME eq node.exe" /FO CSV /NH';
+            const processOutput = execSync(processCmd, { encoding: 'utf8', stdio: 'pipe' });
+
+            const wscriptCmd = 'tasklist /FI "IMAGENAME eq wscript.exe" /FO CSV /NH';
+            const wscriptOutput = execSync(wscriptCmd, { encoding: 'utf8', stdio: 'pipe' });
+
+            if (processOutput.includes('node.exe') || wscriptOutput.includes('wscript.exe')) {
+              console.log('✅  Scheduler Status: Running');
+              console.log('');
+              console.log('💡  Tips:');
+              console.log('   - View logs: ccsbatch log');
+              console.log('   - Change time: ccsbatch config');
+              console.log('   - Stop scheduler: ccsbatch stop');
+            } else {
+              console.log('⚠️  Scheduler Status: Ready (Not Running)');
+              console.log('');
+              console.log('💡  To start: ccsbatch start');
+            }
+          } catch (procError) {
+            console.log('⚠️  Scheduler Status: Ready (Not Running)');
+            console.log('');
+            console.log('💡  To start: ccsbatch start');
+          }
+        }
       }
     } catch (error) {
       console.log('⚠️  Scheduler Status: Not Setup');
@@ -823,26 +818,45 @@ function checkStatus() {
     const taskName = 'ClaudeScheduler';
     try {
       // Task 존재 여부 확인
-      const checkCmd = `schtasks /Query /TN "${taskName}" /FO LIST`;
+      const checkCmd = `schtasks /Query /TN "${taskName}" /V /FO CSV`;
       const output = execSync(checkCmd, { encoding: 'utf8', stdio: 'pipe' });
 
-      // Task 상태 확인 (Ready, Running, Disabled 등)
-      if (output.includes('Running')) {
-        isRunning = true;
-        statusEmoji = '✅';
-        statusText = 'Running';
-      } else if (output.includes('Ready')) {
-        isRunning = false;
-        statusEmoji = '⚠️';
-        statusText = 'Ready (Not Running)';
-      } else if (output.includes('Disabled')) {
-        isRunning = false;
-        statusEmoji = '❌';
-        statusText = 'Disabled';
-      } else {
-        isRunning = false;
-        statusEmoji = '⚠️';
-        statusText = 'Unknown';
+      // CSV 파싱하여 상태 확인
+      const lines = output.split('\n');
+      if (lines.length > 1) {
+        const statusLine = lines[1];
+
+        // Task가 Disabled인지 확인
+        if (statusLine.includes('Disabled')) {
+          isRunning = false;
+          statusEmoji = '❌';
+          statusText = 'Disabled';
+        } else {
+          // node.exe 프로세스가 scheduler.js를 실행 중인지 확인
+          try {
+            const processCmd = 'tasklist /FI "IMAGENAME eq node.exe" /FO CSV /NH';
+            const processOutput = execSync(processCmd, { encoding: 'utf8', stdio: 'pipe' });
+
+            // scheduler.js 관련 프로세스 확인
+            const wscriptCmd = 'tasklist /FI "IMAGENAME eq wscript.exe" /FO CSV /NH';
+            const wscriptOutput = execSync(wscriptCmd, { encoding: 'utf8', stdio: 'pipe' });
+
+            // node.exe 또는 wscript.exe가 실행 중이면 Running으로 간주
+            if (processOutput.includes('node.exe') || wscriptOutput.includes('wscript.exe')) {
+              isRunning = true;
+              statusEmoji = '✅';
+              statusText = 'Running';
+            } else {
+              isRunning = false;
+              statusEmoji = '⚠️';
+              statusText = 'Ready (Not Running)';
+            }
+          } catch (procError) {
+            isRunning = false;
+            statusEmoji = '⚠️';
+            statusText = 'Ready (Not Running)';
+          }
+        }
       }
     } catch (error) {
       // Task가 없는 경우
