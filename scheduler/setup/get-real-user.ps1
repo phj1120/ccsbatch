@@ -6,64 +6,39 @@ function Get-RealUser {
 
     Write-Host "Detecting real logged-in user..." -ForegroundColor Cyan
 
-    # 방법 1: query user 명령어로 현재 콘솔 세션의 사용자 찾기
+    # 방법 1: whoami 명령어로 현재 실행 중인 사용자 가져오기
     try {
-        $queryResult = query user 2>&1
+        $whoamiOutput = whoami
+        Write-Host "  whoami output: $whoamiOutput" -ForegroundColor Cyan
 
-        if ($queryResult -match '>\s*(\S+)\s+console') {
+        # DOMAIN\Username 또는 COMPUTERNAME\Username 형식에서 사용자명만 추출
+        if ($whoamiOutput -match '\\(.+)$') {
             $realUser = $matches[1]
-            Write-Host "  Found console user: $realUser" -ForegroundColor Green
-
-            # 사용자의 홈 디렉토리 확인
-            $userHome = "C:\Users\$realUser"
-            if (Test-Path $userHome) {
-                return @{
-                    Username = $realUser
-                    HomeDirectory = $userHome
-                }
-            }
+        } else {
+            $realUser = $whoamiOutput
         }
-    }
-    catch {
-        Write-Host "  query user failed, trying alternative method..." -ForegroundColor Yellow
-    }
 
-    # 방법 2: LOGNAME 환경변수 확인
-    $logName = $env:LOGNAME
-    if ($logName -and $logName -ne "SYSTEM" -and $logName -ne "Administrator") {
-        $userHome = "C:\Users\$logName"
+        $userHome = "C:\Users\$realUser"
+
+        # 홈 디렉토리 존재 확인
         if (Test-Path $userHome) {
-            Write-Host "  Using LOGNAME: $logName" -ForegroundColor Green
+            Write-Host "  Using current user from whoami: $realUser" -ForegroundColor Green
             return @{
-                Username = $logName
+                Username = $realUser
                 HomeDirectory = $userHome
             }
         }
+
+        Write-Host "  Warning: Home directory not found: $userHome" -ForegroundColor Yellow
+    }
+    catch {
+        Write-Host "  whoami failed: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 
-    # 방법 3: USERNAME 환경변수 (fallback)
+    # Fallback: USERNAME 환경변수 사용
     $userName = $env:USERNAME
-    if ($userName -eq "Administrator" -or $userName -eq "SYSTEM") {
-        Write-Host "  Warning: Running as $userName, attempting to find real user..." -ForegroundColor Yellow
-
-        # C:\Users 폴더에서 최근 활동한 사용자 찾기 (Administrator, Public, Default 제외)
-        $recentUser = Get-ChildItem "C:\Users" -Directory |
-            Where-Object { $_.Name -notin @("Administrator", "Public", "Default", "Default User") } |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-
-        if ($recentUser) {
-            Write-Host "  Using most recently active user: $($recentUser.Name)" -ForegroundColor Green
-            return @{
-                Username = $recentUser.Name
-                HomeDirectory = $recentUser.FullName
-            }
-        }
-    }
-
-    # Fallback: 현재 USERNAME 사용
     $userHome = "C:\Users\$userName"
-    Write-Host "  Using current user: $userName" -ForegroundColor Yellow
+    Write-Host "  Fallback to USERNAME: $userName" -ForegroundColor Yellow
 
     return @{
         Username = $userName

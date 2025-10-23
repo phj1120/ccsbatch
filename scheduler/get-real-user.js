@@ -23,70 +23,36 @@ function getRealUser() {
     };
   }
 
-  // Windows: 실제 로그인한 사용자 감지
-  const currentUser = os.userInfo().username;
-
-  // 방법 1: query user로 콘솔 세션 사용자 찾기
+  // Windows: whoami 명령어로 현재 실행 중인 사용자 가져오기
   try {
-    const queryOutput = execSync('query user', { encoding: 'utf8' });
-    const lines = queryOutput.split('\n');
+    // whoami 실행 (형식: DOMAIN\Username 또는 COMPUTERNAME\Username)
+    const whoamiOutput = execSync('whoami', { encoding: 'utf8' }).trim();
+    console.log(`[get-real-user] whoami output: ${whoamiOutput}`);
 
-    for (const line of lines) {
-      // ">" 표시가 있는 줄이 현재 활성 세션
-      if (line.includes('>') && line.includes('console')) {
-        const match = line.match(/>\s*(\S+)/);
-        if (match) {
-          const realUser = match[1];
-          const userHome = path.join('C:', 'Users', realUser);
+    // 백슬래시로 분리하여 사용자명만 추출
+    const parts = whoamiOutput.split('\\');
+    const currentUser = parts.length > 1 ? parts[1] : parts[0];
 
-          if (fs.existsSync(userHome)) {
-            console.log(`[get-real-user] Detected console user: ${realUser}`);
-            return {
-              username: realUser,
-              homeDirectory: userHome
-            };
-          }
-        }
-      }
+    const userHome = path.join('C:', 'Users', currentUser);
+
+    // 홈 디렉토리 존재 확인
+    if (fs.existsSync(userHome)) {
+      console.log(`[get-real-user] Using current user from whoami: ${currentUser}`);
+      return {
+        username: currentUser,
+        homeDirectory: userHome
+      };
     }
+
+    console.log(`[get-real-user] Warning: Home directory not found: ${userHome}`);
   } catch (error) {
-    // query user 실패 시 계속 진행
+    console.log(`[get-real-user] whoami failed: ${error.message}`);
   }
 
-  // 방법 2: USERNAME이 Administrator/SYSTEM이면 최근 사용자 찾기
-  if (currentUser === 'Administrator' || currentUser === 'SYSTEM') {
-    try {
-      const usersDir = path.join('C:', 'Users');
-      const excludeUsers = ['Administrator', 'Public', 'Default', 'Default User'];
-
-      const userDirs = fs.readdirSync(usersDir)
-        .filter(name => {
-          const userPath = path.join(usersDir, name);
-          return fs.statSync(userPath).isDirectory() && !excludeUsers.includes(name);
-        })
-        .map(name => ({
-          name,
-          path: path.join(usersDir, name),
-          mtime: fs.statSync(path.join(usersDir, name)).mtime
-        }))
-        .sort((a, b) => b.mtime - a.mtime);
-
-      if (userDirs.length > 0) {
-        const recentUser = userDirs[0];
-        console.log(`[get-real-user] Using most recent user: ${recentUser.name}`);
-        return {
-          username: recentUser.name,
-          homeDirectory: recentUser.path
-        };
-      }
-    } catch (error) {
-      // 실패 시 계속 진행
-    }
-  }
-
-  // 방법 3: Fallback - 현재 사용자 사용
+  // Fallback: os 모듈 사용
+  const currentUser = os.userInfo().username;
   const userHome = os.homedir();
-  console.log(`[get-real-user] Using current user: ${currentUser}`);
+  console.log(`[get-real-user] Fallback to os module: ${currentUser}`);
 
   return {
     username: currentUser,
